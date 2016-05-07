@@ -147,7 +147,6 @@ serve_priv_file(FileName, ContentType, Arg) ->
         Dir -> Dir
     end,
     AbsolutePath = lists:flatten(PrivDir ++ "/www/" ++ FileName),
-    lager:debug("Serving static file: ~p", [AbsolutePath]),
     case file:read_file(AbsolutePath) of
         {ok, Content} ->
             ContentType = yaws_api:mime_type(FileName),

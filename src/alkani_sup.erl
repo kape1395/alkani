@@ -44,6 +44,10 @@ start_link() ->
 %% Supervisor initialization.
 %%
 init({}) ->
-    {ok, {{one_for_all, 100, 10}, []}}.
+    GameSpec = {alkani_game,
+        {alkani_game, start_link, []},
+        permanent, brutal_kill, worker, [alkani_game]
+    },
+    {ok, {{one_for_all, 100, 10}, [GameSpec]}}.
 
 

@@ -6,3 +6,7 @@ deps:
 compile:
 	npm run tsc
 
+watch:
+	npm run tsc:w
+
+
