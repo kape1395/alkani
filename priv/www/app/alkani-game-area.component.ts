@@ -1,4 +1,5 @@
-import { Component } from '@angular/core';
+import { Component         } from '@angular/core';
+import { OnInit            } from '@angular/core';
 import { AlkaniGameService } from './alkani-game.service';
 
 @Component({
@@ -8,7 +9,10 @@ import { AlkaniGameService } from './alkani-game.service';
         `,
     directives: []
 })
-export class AlkaniGameAreaComponent {
+export class AlkaniGameAreaComponent implements OnInit {
     constructor(private alkaniGameService: AlkaniGameService) {
+    }
+    ngOnInit() {
+        this.alkaniGameService.connect();
     }
 }
