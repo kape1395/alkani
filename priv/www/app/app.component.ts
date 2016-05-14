@@ -1,9 +1,16 @@
 import { Component } from '@angular/core';
 import { Http      } from '@angular/http';
+import { AlkaniGameService       } from './alkani-game.service';
+import { AlkaniGameAreaComponent } from './alkani-game-area.component';
 
 @Component({
-  selector: 'my-app',
-  template: '<h1>Welcome to {{title}}</h1>'
+    selector: 'my-app',
+    template: `
+        <h1>They are {{title}}!</h1>
+        <alkani-game-area></alkani-game-area>
+        `,
+    directives: [AlkaniGameAreaComponent],
+    providers: [AlkaniGameService]
 })
 export class AppComponent {
     title = "Alkani";
@@ -14,7 +21,7 @@ export class AppComponent {
         this.ws = new WebSocket(playerSocketUrl);
         this.ws.onmessage = (evt) => console.debug(evt.data);
         this.ws.onerror   = (evt) => console.error(`Error: ${evt}`, evt);
-        this.ws.onclose   = (evt) => console.error("** Closed **");
-        this.ws.onopen    = (evt) => console.error("** Openned ***");
+        this.ws.onclose   = (evt) => console.debug("** Closed **");
+        this.ws.onopen    = (evt) => console.debug("** Openned ***");
     }
 }

@@ -66,6 +66,9 @@ handle_request([], _Method, _Arg) ->
 handle_request([?URL_ROOT], 'GET', Arg) ->
     handle_request([?URL_ROOT, "index.html"], 'GET', Arg);
 
+handle_request(["favicon.ico"], 'GET', Arg) ->
+    handle_request([?URL_ROOT, "favicon.ico"], 'GET', Arg);
+
 handle_request([?URL_ROOT, "js", "conf.js"] = Path, 'GET', Arg) ->
     FileName = string:join(Path, "/"),
     Response = serve_priv_file(FileName, yaws_api:mime_type(FileName), Arg),
