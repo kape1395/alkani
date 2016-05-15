@@ -1,31 +1,30 @@
 import { Injectable } from '@angular/core';
 import { Http       } from '@angular/http';
+import { Subject    } from 'rxjs/Subject';
+import { Model      } from './alkani-model';
 
+//
+// See http://reactivex.io/rxjs/manual/overview.html#subject
+//
 @Injectable()
 export class AlkaniGameService {
-    private ws = null;
+    private ws: WebSocket;
+    private ms: Subject<Model>;
 
     constructor(private http: Http) {
     }
 
     connect() {
         var playerSocketUrl = "ws://" + location.host + "/alkani/player";
+        this.ms = new Subject<Model>();
         this.ws = new WebSocket(playerSocketUrl);
-        this.ws.onmessage = (evt) => console.debug("** Event:", evt.data);
-        this.ws.onerror   = (evt) => console.error(`Error: ${evt}`, evt);
-        this.ws.onclose   = (evt) => console.debug("** Closed **");
-        this.ws.onopen    = (evt) => console.debug("** Openned ***");
+        this.ws.onmessage = (evt) => this.ms.next(<Model>JSON.parse(evt.data));
+        this.ws.onerror   = (evt) => this.ms.error(evt);
+        this.ws.onclose   = (evt) => this.ms.complete();
     }
 
-    getModel() {
-        return {
-            players: [
-                {name: "alkanas", pos_x: 20, pos_y: 20, size: 20}
-            ],
-            food: [
-                {pos_x: 20, pos_y: 10, size: 1},
-                {pos_x: 10, pos_y: 20, size: 1}
-            ]
-        };
+    getModelSource(): Subject<any> {
+        return this.ms;
     }
+
 }

@@ -20,11 +20,11 @@
 -module(alkani_game).
 -behaviour(gen_server).
 -compile([{parse_transform, lager_transform}]).
--export([start_link/0, add_player/2]).
+-export([start_link/0, add_player/2, reset_food/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -include("alkani.hrl").
 
--define(MAX_FOOD, 2000).
+-define(MAX_FOOD, 150).
 -define(AREA_WIDTH, 100).
 -define(AREA_HEIGHT, 100).
 
@@ -46,6 +46,13 @@ start_link() ->
 add_player(Pid, Name) ->
     ok = gen_server:cast(?MODULE, {add_player, Pid, Name}),
     ok.
+
+
+%%
+%%
+%%
+reset_food() ->
+    ok = gen_server:cast(?MODULE, reset_food).
 
 
 
@@ -99,6 +106,10 @@ handle_cast({add_player, Pid, Name}, State = #state{players = Players}) ->
     NewState = State#state{
         players = [Player | Players]
     },
+    {noreply, NewState};
+
+handle_cast(reset_food, State) ->
+    NewState = State#state{food = []},
     {noreply, NewState};
 
 handle_cast(_Unknown, State) ->
