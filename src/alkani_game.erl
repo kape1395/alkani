@@ -24,9 +24,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -include("alkani.hrl").
 
--define(MAX_FOOD, 150).
--define(AREA_WIDTH, 100).
--define(AREA_HEIGHT, 100).
+-define(MAX_FOOD,  200).
+-define(TICK_RATE, 100).
 
 
 %%% ============================================================================
@@ -99,8 +98,8 @@ handle_cast({add_player, Pid, Name}, State = #state{players = Players}) ->
     Player = #player{
         name = Name,
         pid  = Pid,
-        pos_x = random:uniform(?AREA_WIDTH) - 1,
-        pos_y = random:uniform(?AREA_HEIGHT) - 1,
+        pos_x = random:uniform(),
+        pos_y = random:uniform(),
         size = 10
     },
     NewState = State#state{
@@ -123,7 +122,7 @@ handle_info(time_tick, State) ->
     NewFood = grow_food(State),
     NewState = update_players(State#state{food = NewFood}),
     lager:debug("Time tick, food=~p.", [length(NewFood)]),
-    _ = erlang:send_after(1000, self(), time_tick),
+    _ = erlang:send_after(?TICK_RATE, self(), time_tick),
     {noreply, NewState};
 
 handle_info({'EXIT', From, _Reason}, State = #state{players = Players}) ->
@@ -161,14 +160,34 @@ code_change(_OldVsn, State, _Extra) ->
 grow_food(#state{food = Food}) ->
     MakeNewFood = fun (_Num) ->
         #food{
-            pos_x = random:uniform(?AREA_WIDTH) - 1,
-            pos_y = random:uniform(?AREA_HEIGHT) - 1,
-            size = 1
+            pos_x = random:uniform(),
+            pos_y = random:uniform(),
+            size = 1,
+            dir = random:uniform() * math:pi() * 2
+        }
+    end,
+    MoveFood = fun (F = #food{pos_x = X, pos_y = Y, dir = D}) ->
+        Speed = 0.002,
+        AngleSpeed = 2.0,
+        NewX = X + math:cos(D) * Speed,
+        NewY = Y + math:sin(D) * Speed,
+        F#food{
+            pos_x = if
+                NewX >= 1 -> NewX - 1;
+                NewX <  0 -> NewX + 1;
+                true      -> NewX
+            end,
+            pos_y = if
+                NewY >= 1 -> NewY - 1;
+                NewY <  0 -> NewY + 1;
+                true      -> NewY
+            end,
+            dir = D + (rand:uniform() - 0.5) * AngleSpeed
         }
     end,
     FoodCount = length(Food),
     AddedFood = lists:map(MakeNewFood, lists:seq(1, (?MAX_FOOD - FoodCount) div 100)),
-    AddedFood ++ Food.
+    AddedFood ++ lists:map(MoveFood, Food).
 
 
 %%

@@ -12,7 +12,7 @@ import { AlkaniGameService } from './alkani-game.service';
 @Component({
     selector: 'alkani-game-area',
     template: `
-        <canvas #canvas class="alkani-game-area"></canvas>
+        <canvas #canvas class="alkani-game-area" width="400" height="400"></canvas>
         `,
     directives: []
 })
@@ -49,7 +49,7 @@ export class AlkaniGameAreaComponent implements OnInit, AfterViewInit {
         }
         for (var f of this.model.food) {
             ctx.beginPath();
-            ctx.arc(f.pos_x, f.pos_y, f.size * 5, 0, 2 * Math.PI);
+            ctx.arc(f.pos_x * sizeX, f.pos_y * sizeY, f.size * 5, 0, 2 * Math.PI);
             ctx.fillStyle = "blue";
             ctx.fill();
 
