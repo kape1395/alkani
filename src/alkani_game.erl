@@ -17,6 +17,38 @@
 %%%
 %%%
 %%%
+%%%
+%%% Game area is of size
+%%%
+%%%     A = 1.
+%%%
+%%% Player size is defined as follows, in order to limit
+%%% its size on the game area:
+%%%
+%%%            R_max * S_P
+%%%     R_P = -------------
+%%%              K + S_P
+%%%
+%%% where S_P is a number of food eated by the player P and
+%%% R_P is a radius of the player. This definition implies that:
+%%%
+%%%     R_P < R_max
+%%%
+%%% Viewport size of a player should be proportional to its size:
+%%%
+%%%     V_P = R_P * V
+%%%
+%%% where V is a constant describing how much the viewport is bigger
+%%% comparing to the player's size.
+%%%
+%%% Viewport should be smaller or equal to the game area:
+%%%
+%%%     V_P =< A
+%%%
+%%% threfore
+%%%
+%%%     R_P * V =< A,   R_P =< A/V   =>   R_max =< A/V
+%%%
 -module(alkani_game).
 -behaviour(gen_server).
 -compile([{parse_transform, lager_transform}]).
@@ -24,8 +56,20 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -include("alkani.hrl").
 
--define(MAX_FOOD,  200).
+-define(MAX_FOOD,  10000).
 -define(TICK_RATE, 100).
+
+-define(A,      1.0).       % Area size.
+-define(V,      20.0).      % Viewport size, comparing to the player's size.
+-define(R_max,  ?A/?V).     % Maximal radius if a player.
+-define(K,      100).       % How fast half of the R_max is reached.
+-define(INIT_SIZE, 10).     % Initial size of a player.
+
+-define(FOOD_SPEED,     0.0005).   % Linear speed of the food.
+-define(FOOD_ANGLE,     2.0).      % Angular speed of the food.
+-define(FOOD_SIZE,      1).        % Size of the food elements.
+-define(FOOD_GROW_PROB, 0.001).    % Probability for food to grow.
+-define(FOOD_SIZE_MAX,  10).       % Maximal size of the food.
 
 
 %%% ============================================================================
@@ -96,11 +140,11 @@ handle_call(_Unknown, _From, State) ->
 handle_cast({add_player, Pid, Name}, State = #state{players = Players}) ->
     true = erlang:link(Pid),
     Player = #player{
-        name = Name,
-        pid  = Pid,
+        name  = Name,
+        pid   = Pid,
         pos_x = random:uniform(),
         pos_y = random:uniform(),
-        size = 10
+        size  = ?INIT_SIZE
     },
     NewState = State#state{
         players = [Player | Players]
@@ -119,10 +163,13 @@ handle_cast(_Unknown, State) ->
 %%  Unknown messages.
 %%
 handle_info(time_tick, State) ->
-    NewFood = grow_food(State),
-    NewState = update_players(State#state{food = NewFood}),
-    lager:debug("Time tick, food=~p.", [length(NewFood)]),
     _ = erlang:send_after(?TICK_RATE, self(), time_tick),
+    {DurationUS, NewState = #state{players = NewPlayers, food = NewFood}} = timer:tc(fun () ->
+        NewFood = grow_food(State),
+        NewState = update_players(State#state{food = NewFood}),
+        NewState
+    end),
+    lager:debug("Time tick in ~pus, players=~p, food=~p.", [DurationUS, length(NewPlayers), length(NewFood)]),
     {noreply, NewState};
 
 handle_info({'EXIT', From, _Reason}, State = #state{players = Players}) ->
@@ -162,27 +209,29 @@ grow_food(#state{food = Food}) ->
         #food{
             pos_x = random:uniform(),
             pos_y = random:uniform(),
-            size = 1,
+            size = ?FOOD_SIZE,
             dir = random:uniform() * math:pi() * 2
         }
     end,
-    MoveFood = fun (F = #food{pos_x = X, pos_y = Y, dir = D}) ->
-        Speed = 0.002,
-        AngleSpeed = 2.0,
-        NewX = X + math:cos(D) * Speed,
-        NewY = Y + math:sin(D) * Speed,
+    MoveFood = fun (F = #food{pos_x = X, pos_y = Y, dir = D, size = S}) ->
+        NewX = X + math:cos(D) * ?FOOD_SPEED,
+        NewY = Y + math:sin(D) * ?FOOD_SPEED,
         F#food{
             pos_x = if
-                NewX >= 1 -> NewX - 1;
-                NewX <  0 -> NewX + 1;
-                true      -> NewX
+                NewX >= ?A -> NewX - ?A;
+                NewX <  0  -> NewX + ?A;
+                true       -> NewX
             end,
             pos_y = if
-                NewY >= 1 -> NewY - 1;
-                NewY <  0 -> NewY + 1;
-                true      -> NewY
+                NewY >= ?A -> NewY - ?A;
+                NewY <  0  -> NewY + ?A;
+                true       -> NewY
             end,
-            dir = D + (rand:uniform() - 0.5) * AngleSpeed
+            size = case (random:uniform() < ?FOOD_GROW_PROB) andalso (S < ?FOOD_SIZE_MAX) of
+                true  -> S + 1;
+                false -> S
+            end,
+            dir = D + (rand:uniform() - 0.5) * ?FOOD_ANGLE
         }
     end,
     FoodCount = length(Food),
@@ -193,11 +242,53 @@ grow_food(#state{food = Food}) ->
 %%
 %%
 %%
-update_players(State = #state{players = Players, food = Food}) ->
-    SendStateToPlayer = fun (#player{pid = Pid}) ->
-        ok = alkani_player:new_state(Pid, Players, Food)
+update_players(State = #state{players = []}) ->
+    State;
+
+update_players(State = #state{players = [Player | Players], food = Food}) ->
+    {NewPlayers, NewFood} = update_players(Player, [], Players, Food),
+    State#state{players = NewPlayers, food = NewFood}.
+
+update_players(Player = #player{pid = Pid, name = Name, pos_x = PosX, pos_y = PosY, size = Size}, PrevPlayers, NextPlayers, Food) ->
+    R_P = radius(Size),
+    V_P = R_P * ?V,
+    V_P2 = V_P / 2,
+    %lager:debug("Player: pos=(~p, ~p), size=~p, R_P=~p, V_P=~p", [PosX, PosY, Size, R_P, V_P]),
+    FoodFun = fun (F = #food{pos_x = F_Xn, pos_y = F_Yn, size = F_S}, {F_Vs, F_A, S}) ->
+        F_X = F_Xn, % TODO
+        F_Y = F_Yn, % TODO
+        F_R = radius(F_S),
+        case (erlang:abs(F_X - PosX) - F_R =< V_P2) andalso (erlang:abs(F_Y - PosY) - F_R =< V_P2) of
+            true ->
+                F_V = F#food{
+                    pos_x = (F_X - PosX) / V_P,
+                    pos_y = (F_Y - PosY) / V_P,
+                    size = F_R / V_P
+                },
+                Dist = math:sqrt((PosX - F_X) * (PosX - F_X) + (PosY - F_Y) * (PosY - F_Y)),
+                case Dist =< R_P of
+                    true  -> {[F_V | F_Vs], F_A, S + F_S};
+                    false -> {[F_V | F_Vs], [F | F_A], S}
+                end;
+            false ->
+                {F_Vs, [F | F_A], S}
+        end
     end,
-    ok = lists:foreach(SendStateToPlayer, Players),
-    State.
+    {ViewpointFood, NewFood, NewSize} = lists:foldl(FoodFun, {[], [], Size}, Food),
+    NewPlayer = Player#player{
+        size = NewSize
+    },
+    ok = alkani_player:new_state(Pid, Name, NewSize, R_P / V_P, [], ViewpointFood),
+    case NextPlayers of
+        []                          -> {lists:reverse([NewPlayer | PrevPlayers]), NewFood};
+        [NextPlayer | OtherPlayers] -> update_players(NextPlayer, [NewPlayer | PrevPlayers], OtherPlayers, NewFood)
+    end.
+
+
+%%
+%%
+%%
+radius(Size) ->
+    ?R_max * Size / (?K + Size).
 
 

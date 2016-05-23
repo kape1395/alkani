@@ -19,7 +19,7 @@
 %%%
 -module(alkani_player).
 -compile([{parse_transform, lager_transform}]).
--export([start/1, new_state/3]).
+-export([start/1, new_state/6]).
 -export([init/1, handle_message/1]).
 -include("alkani.hrl").
 -include_lib("yaws/include/yaws_api.hrl").
@@ -41,8 +41,8 @@ start(_Args) ->
     {websocket, ?MODULE, Opts}.
 
 
-new_state(WebsocketPID, Players, Food) ->
-    Event = encode(state, {Players, Food}),
+new_state(WebsocketPID, PlayerName, PlayerSize, PlayerR, Players, Food) ->
+    Event = encode(state, {PlayerName, PlayerSize, PlayerR, Players, Food}),
     ok = yaws_api:websocket_send(WebsocketPID, {text, jiffy:encode(Event)}),
     ok.
 
@@ -90,8 +90,11 @@ handle_message({Type, Data}) ->
 encode({list, Mode}, List) when is_list(List) ->
     [ encode(Mode, E) || E <- List ];
 
-encode(state, {Players, Food}) ->
+encode(state, {PlayerName, PlayerSize, PlayerR, Players, Food}) ->
     {[
+        {name, PlayerName},
+        {size, PlayerSize},
+        {r,    PlayerR},
         {players, encode({list, player}, Players)},
         {food, encode({list, food}, Food)}
     ]};
@@ -99,16 +102,17 @@ encode(state, {Players, Food}) ->
 encode(player, #player{name = Name, pos_x = PosX, pos_y = PosY, size = Size}) ->
     {[
         {name,  Name},
-        {pos_x, PosX},
-        {pos_y, PosY},
-        {size,  Size}
+        {x, PosX},
+        {y, PosY},
+        {r, Size},
+        {s, null}
     ]};
 
 encode(food, #food{pos_x = PosX, pos_y = PosY, size = Size}) ->
     {[
-        {pos_x, PosX},
-        {pos_y, PosY},
-        {size,  Size}
+        {x, PosX},
+        {y, PosY},
+        {r, Size}
     ]};
 
 encode(_Mode, undefined) ->

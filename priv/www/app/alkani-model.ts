@@ -1,19 +1,22 @@
 
 export class Player {
-    name:  string;
-    pos_x: number;
-    pos_y: number;
-    size:  number;
+    name: string;
+    x: number;
+    y: number;
+    r: number;
 }
 
 export class Food {
-    pos_x: number;
-    pos_y: number;
-    size:  number;
+    x: number;
+    y: number;
+    r: number;
 }
 
 export class Model{
-    players: Player[];
-    food:    Food[];
+    name:    string;    //
+    size:    number;    //
+    r:       number;    // Radius of the player.
+    players: Player[];  // All visible other players.
+    food:    Food[];    // All visible food.
 }
 
