@@ -27,4 +27,12 @@ export class AlkaniGameService {
         return this.ms;
     }
 
+    sendDirection(dx: number, dy: number) {
+        this.ws.send(JSON.stringify({
+            type: "player_direction",
+            dx: dx,
+            dy: dy
+        }));
+    }
+
 }

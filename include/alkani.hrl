@@ -4,7 +4,8 @@
     pid     :: pid(),       % Player's process ID.
     pos_x   :: number(),    % Position X \in [0..1)
     pos_y   :: number(),    % Position Y \in [0..1)
-    size    :: integer()    %
+    size    :: integer(),   %
+    dir     :: number() | undefined
 }).
 
 -record(food, {

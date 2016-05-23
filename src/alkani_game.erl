@@ -25,9 +25,9 @@
 %%% Player size is defined as follows, in order to limit
 %%% its size on the game area:
 %%%
-%%%            R_max * S_P
+%%%            R_max * S_P^-2
 %%%     R_P = -------------
-%%%              K + S_P
+%%%              K + S_P^-2
 %%%
 %%% where S_P is a number of food eated by the player P and
 %%% R_P is a radius of the player. This definition implies that:
@@ -52,7 +52,7 @@
 -module(alkani_game).
 -behaviour(gen_server).
 -compile([{parse_transform, lager_transform}]).
--export([start_link/0, add_player/2, reset_food/0]).
+-export([start_link/0, add_player/2, player_direction/3, reset_food/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -include("alkani.hrl").
 
@@ -64,6 +64,7 @@
 -define(R_max,  ?A/?V).     % Maximal radius if a player.
 -define(K,      100).       % How fast half of the R_max is reached.
 -define(INIT_SIZE, 10).     % Initial size of a player.
+-define(PLAYER_SPEED, 0.002).
 
 -define(FOOD_SPEED,     0.0005).   % Linear speed of the food.
 -define(FOOD_ANGLE,     2.0).      % Angular speed of the food.
@@ -89,6 +90,17 @@ start_link() ->
 add_player(Pid, Name) ->
     ok = gen_server:cast(?MODULE, {add_player, Pid, Name}),
     ok.
+
+
+%%
+%%
+%%
+player_direction(Pid, DX, DY) ->
+    Direction = case {DX, DY} of
+        {0, 0} -> undefined;
+        _      -> math:atan2(DY, DX)
+    end,
+    ok = gen_server:cast(?MODULE, {player_direction, Pid, Direction}).
 
 
 %%
@@ -149,6 +161,16 @@ handle_cast({add_player, Pid, Name}, State = #state{players = Players}) ->
     NewState = State#state{
         players = [Player | Players]
     },
+    {noreply, NewState};
+
+handle_cast({player_direction, Pid, Direction}, State = #state{players = Players}) ->
+    SetDir = fun
+        SetDir([Player = #player{pid = P} | Other]) when P =:= Pid -> [Player#player{dir = Direction} | Other];
+        SetDir([Player                    | Other])                -> [Player | SetDir(Other)];
+        SetDir([                                 ])                -> []
+    end,
+    NewPlayers = SetDir(Players),
+    NewState = State#state{players = NewPlayers},
     {noreply, NewState};
 
 handle_cast(reset_food, State) ->
@@ -249,10 +271,14 @@ update_players(State = #state{players = [Player | Players], food = Food}) ->
     {NewPlayers, NewFood} = update_players(Player, [], Players, Food),
     State#state{players = NewPlayers, food = NewFood}.
 
-update_players(Player = #player{pid = Pid, name = Name, pos_x = PosX, pos_y = PosY, size = Size}, PrevPlayers, NextPlayers, Food) ->
+update_players(Player = #player{pid = Pid, name = Name, pos_x = OldPosX, pos_y = OldPosY, size = Size, dir = Direction}, PrevPlayers, NextPlayers, Food) ->
     R_P = radius(Size),
     V_P = R_P * ?V,
     V_P2 = V_P / 2,
+    {PosX, PosY} = case Direction of
+        undefined -> {OldPosX, OldPosY};
+        _         -> {OldPosX + math:cos(Direction) * ?PLAYER_SPEED, OldPosY + math:sin(Direction) * ?PLAYER_SPEED}
+    end,
     %lager:debug("Player: pos=(~p, ~p), size=~p, R_P=~p, V_P=~p", [PosX, PosY, Size, R_P, V_P]),
     FoodFun = fun (F = #food{pos_x = F_Xn, pos_y = F_Yn, size = F_S}, {F_Vs, F_A, S}) ->
         F_X = F_Xn, % TODO
@@ -276,6 +302,8 @@ update_players(Player = #player{pid = Pid, name = Name, pos_x = PosX, pos_y = Po
     end,
     {ViewpointFood, NewFood, NewSize} = lists:foldl(FoodFun, {[], [], Size}, Food),
     NewPlayer = Player#player{
+        pos_x = PosX,
+        pos_y = PosY,
         size = NewSize
     },
     ok = alkani_player:new_state(Pid, Name, NewSize, R_P / V_P, [], ViewpointFood),
@@ -289,6 +317,7 @@ update_players(Player = #player{pid = Pid, name = Name, pos_x = PosX, pos_y = Po
 %%
 %%
 radius(Size) ->
-    ?R_max * Size / (?K + Size).
+    Sqrt = math:sqrt(Size),
+    ?R_max * Sqrt / (?K + Sqrt).
 
 

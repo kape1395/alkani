@@ -79,6 +79,23 @@ handle_message({close, Status, Reason}) ->
     lager:debug("The events websocket is closed, status=~p, reason=~p.", [Status, Reason]),
     noreply;
 
+handle_message({text, Data}) ->
+    try
+        {DataProps} = jiffy:decode(Data),
+        case proplists:lookup(<<"type">>, DataProps) of
+            {_, <<"player_direction">>} ->
+                DX = decode(number, proplists:get_value(<<"dx">>, DataProps)),
+                DY = decode(number, proplists:get_value(<<"dy">>, DataProps)),
+                ok = alkani_game:player_direction(self(), DX, DY);
+            _ ->
+                lager:debug("The events websocket received a message, type=text, data=~p, unknown JSON", [Data])
+        end
+    catch
+        T:E ->
+            lager:debug("The events websocket received a message, type=text, data=~p, not JSON, reason=~p:~p, ~p", [Data, T, E, erlang:get_stacktrace()])
+    end,
+    noreply;
+
 handle_message({Type, Data}) ->
     lager:debug("The events websocket received a message, type=~p, data=~p.", [Type, Data]),
     noreply.
@@ -117,3 +134,11 @@ encode(food, #food{pos_x = PosX, pos_y = PosY, size = Size}) ->
 
 encode(_Mode, undefined) ->
     null.
+
+
+%%
+%%
+%%
+decode(number, Number) when is_number(Number) ->
+    Number.
+
