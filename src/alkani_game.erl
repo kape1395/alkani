@@ -239,16 +239,8 @@ grow_food(#state{food = Food}) ->
         NewX = X + math:cos(D) * ?FOOD_SPEED,
         NewY = Y + math:sin(D) * ?FOOD_SPEED,
         F#food{
-            pos_x = if
-                NewX >= ?A -> NewX - ?A;
-                NewX <  0  -> NewX + ?A;
-                true       -> NewX
-            end,
-            pos_y = if
-                NewY >= ?A -> NewY - ?A;
-                NewY <  0  -> NewY + ?A;
-                true       -> NewY
-            end,
+            pos_x = position(NewX),
+            pos_y = position(NewY),
             size = case (random:uniform() < ?FOOD_GROW_PROB) andalso (S < ?FOOD_SIZE_MAX) of
                 true  -> S + 1;
                 false -> S
@@ -276,13 +268,18 @@ update_players(Player = #player{pid = Pid, name = Name, pos_x = OldPosX, pos_y =
     V_P = R_P * ?V,
     V_P2 = V_P / 2,
     {PosX, PosY} = case Direction of
-        undefined -> {OldPosX, OldPosY};
-        _         -> {OldPosX + math:cos(Direction) * ?PLAYER_SPEED, OldPosY + math:sin(Direction) * ?PLAYER_SPEED}
+        undefined ->
+            {OldPosX, OldPosY};
+        _ ->
+            {
+                position(OldPosX + math:cos(Direction) * ?PLAYER_SPEED),
+                position(OldPosY + math:sin(Direction) * ?PLAYER_SPEED)
+            }
     end,
     %lager:debug("Player: pos=(~p, ~p), size=~p, R_P=~p, V_P=~p", [PosX, PosY, Size, R_P, V_P]),
     FoodFun = fun (F = #food{pos_x = F_Xn, pos_y = F_Yn, size = F_S}, {F_Vs, F_A, S}) ->
-        F_X = F_Xn, % TODO
-        F_Y = F_Yn, % TODO
+        F_X = if F_Xn < PosX - ?A/2 -> F_Xn + ?A; F_Xn > PosX + ?A/2 -> F_Xn - ?A; true -> F_Xn end,
+        F_Y = if F_Yn < PosY - ?A/2 -> F_Yn + ?A; F_Yn > PosY + ?A/2 -> F_Yn - ?A; true -> F_Yn end,
         F_R = radius(F_S),
         case (erlang:abs(F_X - PosX) - F_R =< V_P2) andalso (erlang:abs(F_Y - PosY) - F_R =< V_P2) of
             true ->
@@ -319,5 +316,13 @@ update_players(Player = #player{pid = Pid, name = Name, pos_x = OldPosX, pos_y =
 radius(Size) ->
     Sqrt = math:sqrt(Size),
     ?R_max * Sqrt / (?K + Sqrt).
+
+
+%%
+%%
+%%
+position(Pos) when Pos >= ?A -> Pos - ?A;
+position(Pos) when Pos <  0  -> Pos + ?A;
+position(Pos)                -> Pos.
 
 
